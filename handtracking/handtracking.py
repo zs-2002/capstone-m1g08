@@ -6,14 +6,15 @@ mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 
 # Set up video capture
-cap = cv2.VideoCapture(0)  # Use 0 for webcam or provide the video file path
+cap = cv2.VideoCapture(1)
 
 # Configure the MediaPipe Hands model
 with mp_hands.Hands(
     static_image_mode=False,         # False for live detection
-    max_num_hands=2,                 # Detect up to 2 hands
+    max_num_hands=1,                 # Detect up to 2 hands
     min_detection_confidence=0.5,    # Minimum confidence for detection
-    min_tracking_confidence=0.5      # Minimum confidence for tracking
+    min_tracking_confidence=0.5,      # Minimum confidence for tracking
+    model_complexity=1
 ) as hands:
     while cap.isOpened():
         ret, frame = cap.read()
