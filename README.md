@@ -1,3 +1,4 @@
-dependencies:
+pip install 
+
 opencv-python
 mediapipe
