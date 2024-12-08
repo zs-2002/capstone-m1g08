@@ -1,0 +1,3 @@
+dependencies:
+opencv-python
+mediapipe
