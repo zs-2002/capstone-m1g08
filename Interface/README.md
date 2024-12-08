@@ -1,4 +1,4 @@
 Dependencies:
 
-tkinter
-pandas
+-tkinter
+-pandas
