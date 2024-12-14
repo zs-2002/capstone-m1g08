@@ -3,6 +3,7 @@ import tkinter as tk
 import pandas as pd
 from operator_interface import OperatorInterface
 from camera_module import CameraModule
+import socket
 
 class RotatableCameraInterface:
     def __init__(self):
@@ -17,6 +18,15 @@ class RotatableCameraInterface:
 
         # Create an instance of camera module
         self.camera_module = CameraModule()
+
+         # Initialize socket connection to RPi
+        self.rpi_ip = "192.168.1.10"  # Replace with your RPi's IP address
+        self.rpi_port = 65432
+        self.socket = None
+        
+        # Initialize camera angles
+        self.horizontal_angle = 90
+        self.vertical_angle = 90
 
         # Left Frame for controls
         left_frame = tk.Frame(self.window)
@@ -47,10 +57,10 @@ class RotatableCameraInterface:
         angle_frame = tk.Frame(left_frame)
         angle_frame.grid(row=2, column=1, columnspan=2, pady=5)
 
-        tk.Button(angle_frame, text="Up", width=10, command=None).grid(row=0, column=1, pady=5)
-        tk.Button(angle_frame, text="Left", width=10, command=None).grid(row=1, column=0, padx=5)
-        tk.Button(angle_frame, text="Right", width=10, command=None).grid(row=1, column=2, padx=5)
-        tk.Button(angle_frame, text="Down", width=10, command=None).grid(row=2, column=1, pady=5)
+        tk.Button(angle_frame, text="Up", width=10, command=self.send_up).grid(row=0, column=1, pady=5)
+        tk.Button(angle_frame, text="Left", width=10, command=self.send_left).grid(row=1, column=0, padx=5)
+        tk.Button(angle_frame, text="Right", width=10, command=self.send_right).grid(row=1, column=2, padx=5)
+        tk.Button(angle_frame, text="Down", width=10, command=self.send_down).grid(row=2, column=1, pady=5)
 
         # Visualization buttons in a labeled box
         visualization_frame = tk.LabelFrame(left_frame, text="Visualization Controls", padx=10, pady=10)
@@ -180,3 +190,32 @@ class RotatableCameraInterface:
         # Launch Operator Interface
         print(f"Launching operator interface for process: {selected_process}")
         OperatorInterface(selected_process, self)  # Pass `self` as a reference to the RotatableCameraInterface
+
+    def send_angles_to_rpi(self):
+        try:
+            if self.socket is None:
+                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.socket.connect((self.rpi_host, self.rpi_port))
+
+            data = f"{1},{self.horizontal_angle},{self.vertical_angle}" # 1 for cam1
+            self.socket.sendall(data.encode('utf-8'))
+            print(f"Sent angles to RPi: {data}")
+        except Exception as e:
+            print(f"Error sending angles to RPi: {e}")
+            self.socket = None  # Reset the socket if an error occurs
+
+    def move_up(self):
+        self.vertical_angle = min(180, self.vertical_angle + 1)
+        self.send_angles_to_rpi()
+
+    def move_down(self):
+        self.vertical_angle = max(0, self.vertical_angle - 1)
+        self.send_angles_to_rpi()
+
+    def move_left(self):
+        self.horizontal_angle = max(0, self.horizontal_angle - 1)
+        self.send_angles_to_rpi()
+
+    def move_right(self):
+        self.horizontal_angle = min(180, self.horizontal_angle + 1)
+        self.send_angles_to_rpi()
