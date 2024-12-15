@@ -20,8 +20,8 @@ class RotatableCameraInterface:
         self.camera_module = CameraModule()
 
          # Initialize socket connection to RPi
-        self.rpi_ip = "192.168.1.10"  # Replace with your RPi's IP address
-        self.rpi_port = 65432
+        self.rpi_host = "192.168.137.152"  # Replace with your RPi's IP address
+        self.rpi_port = 5000
         self.socket = None
         
         # Initialize camera angles
@@ -57,10 +57,10 @@ class RotatableCameraInterface:
         angle_frame = tk.Frame(left_frame)
         angle_frame.grid(row=2, column=1, columnspan=2, pady=5)
 
-        tk.Button(angle_frame, text="Up", width=10, command=self.send_up).grid(row=0, column=1, pady=5)
-        tk.Button(angle_frame, text="Left", width=10, command=self.send_left).grid(row=1, column=0, padx=5)
-        tk.Button(angle_frame, text="Right", width=10, command=self.send_right).grid(row=1, column=2, padx=5)
-        tk.Button(angle_frame, text="Down", width=10, command=self.send_down).grid(row=2, column=1, pady=5)
+        tk.Button(angle_frame, text="Up", width=10, command=self.move_up).grid(row=0, column=1, pady=5)
+        tk.Button(angle_frame, text="Left", width=10, command=self.move_left).grid(row=1, column=0, padx=5)
+        tk.Button(angle_frame, text="Right", width=10, command=self.move_right).grid(row=1, column=2, padx=5)
+        tk.Button(angle_frame, text="Down", width=10, command=self.move_down).grid(row=2, column=1, pady=5)
 
         # Visualization buttons in a labeled box
         visualization_frame = tk.LabelFrame(left_frame, text="Visualization Controls", padx=10, pady=10)
