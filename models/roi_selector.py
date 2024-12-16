@@ -84,4 +84,5 @@ def select_roi(camera_index=0, resolution=(1920, 1080)):
 
 # Test the ROI Selector
 if __name__ == "__main__":
+#
     select_roi(camera_index=0, resolution=(1920, 1080))
