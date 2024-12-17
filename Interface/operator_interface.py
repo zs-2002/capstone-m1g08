@@ -59,7 +59,7 @@ class OperatorInterface:
         Placeholder for a function that captures angles from the camera, compares them with step values,
         and returns a tuple: (is_correct: bool, elapsed_time: float)
         """
-        # TO BE IMPLEMENTED BY OTHER DEVELOPERS
+        # TO BE IMPLEMENTED BY ZHI SHENG
         # This function should:
         # 1. Capture the angles from the camera.
         # 2. Compare captured angles with step_h_angle and step_v_angle.
