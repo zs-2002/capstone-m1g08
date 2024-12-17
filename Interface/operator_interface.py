@@ -1,10 +1,11 @@
 import tkinter as tk
 import pandas as pd
 import time
+from camera_module import CameraModule
 
 class OperatorInterface:
     def __init__(self, selected_process, parent_interface):
-        self.window = tk.Tk()
+        self.window = tk.Toplevel()
         self.window.title('Operator Interface')
         self.parent_interface = parent_interface  # Reference to the RotatableCameraInterface
 
@@ -13,53 +14,58 @@ class OperatorInterface:
             df = pd.read_csv("assembly_steps.csv")
             self.steps = df[df['process'] == selected_process].to_dict('records')
         except FileNotFoundError:
-            tk.Label(self.window, text="Error: No Steps Defined!", fg="red").pack()
+            tk.Label(self.window, text="Error: No Steps Defined!", fg="red").grid(row=0, column=0, columnspan=2, pady=10)
             return
 
         if not self.steps:
-            tk.Label(self.window, text="Error: No Steps for Selected Process!", fg="red").pack()
+            tk.Label(self.window, text="Error: No Steps for Selected Process!", fg="red").grid(row=0, column=0, columnspan=2, pady=10)
             return
 
         self.current_step = 0
         self.total_time = 0  # Track total cycle time
+        
+        # Camera feed setup
+        self.camera_module = CameraModule()
+        self.video_label = tk.Label(self.window, bg="black")
+        self.video_label.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
 
-        # Video feed placeholder with border
-        video_frame = tk.Frame(self.window, bg="black", bd=2, relief="ridge")
-        video_frame.pack(pady=10)
-        self.video_label = tk.Label(video_frame, text="VIDEO", font=("Arial", 14), fg="white", bg="black", width=40, height=10)
-        self.video_label.pack()
+        # Start the camera feed
+        self.camera_module.start_feed(self.video_label)
 
         # Step display
         self.step_label = tk.Label(self.window, text="Current Step: ", font=("Arial", 14))
-        self.step_label.pack(pady=10)
+        self.step_label.grid(row=1, column=0, columnspan=2, pady=10)
 
         # Correctness display
         self.correctness_display = tk.Text(self.window, height=10, width=50, font=("Arial", 12))
-        self.correctness_display.pack(pady=10)
+        self.correctness_display.grid(row=2, column=0, columnspan=2, pady=10)
 
         # Alert display
         self.alert_label = tk.Label(self.window, text="", font=("Arial", 14), fg="red")
-        self.alert_label.pack(pady=10)
-
-        # Dummy steps for comparison
-        self.dummy_steps = [
-            {"horizontal_angle": 45, "vertical_angle": 45, "time": 5},  # Correct
-            {"horizontal_angle": 50, "vertical_angle": 50, "time": 6},  # Incorrect
-            {"horizontal_angle": 45, "vertical_angle": 45, "time": 4},  # Correct
-            {"horizontal_angle": 55, "vertical_angle": 45, "time": 7},  # Incorrect
-        ]
+        self.alert_label.grid(row=3, column=0, columnspan=2, pady=10)
 
         # Start processing steps
         self.start_time = time.time()
         self.check_step()
 
         # Add a "Back to Supervisor Interface" button
-        tk.Button(self.window, text="Back to Supervisor Interface", command=self.navigate_back).pack(pady=10)
+        tk.Button(self.window, text="Back to Supervisor Interface", command=self.navigate_back).grid(row=4, column=0, columnspan=2, pady=10)
 
         # Bind cleanup function to close window
         self.window.protocol("WM_DELETE_WINDOW", self.on_close)
 
-        self.window.mainloop()
+    def capture_and_compare_angles(self, step_h_angle, step_v_angle):
+        """
+        Placeholder for a function that captures angles from the camera, compares them with step values,
+        and returns a tuple: (is_correct: bool, elapsed_time: float)
+        """
+        # TO BE IMPLEMENTED BY OTHER DEVELOPERS
+        # This function should:
+        # 1. Capture the angles from the camera.
+        # 2. Compare captured angles with step_h_angle and step_v_angle.
+        # 3. Calculate the time taken for the step.
+        # 4. Return True (if angles match) or False (if angles do not match) along with elapsed time.
+        pass
 
     def check_step(self):
         if self.current_step >= len(self.steps):
@@ -68,40 +74,42 @@ class OperatorInterface:
             self.correctness_display.tag_configure("blue", foreground="blue")
             return
 
-        # Dummy elapsed time and angles
-        elapsed_time = self.dummy_steps[self.current_step]["time"]
-        dummy_horizontal_angle = self.dummy_steps[self.current_step]["horizontal_angle"]
-        dummy_vertical_angle = self.dummy_steps[self.current_step]["vertical_angle"]
-
-        # Dummy comparison function to check angles
-        def compare_angles(step_h_angle, step_v_angle, dummy_h_angle, dummy_v_angle):
-            horizontal_match = abs(step_h_angle - dummy_h_angle) <= 5  # Allowable difference for horizontal angle
-            vertical_match = abs(step_v_angle - dummy_v_angle) <= 5  # Allowable difference for vertical angle
-            return horizontal_match and vertical_match
-
         # Get step details from the CSV
         step_number = self.steps[self.current_step]["step_number"]
         step_h_angle = self.steps[self.current_step]["horizontal_angle"]
         step_v_angle = self.steps[self.current_step]["vertical_angle"]
 
-        # Check correctness of the step
-        if not compare_angles(step_h_angle, step_v_angle, dummy_horizontal_angle, dummy_vertical_angle):
+        # Call the placeholder function
+        result = self.capture_and_compare_angles(step_h_angle, step_v_angle)
+
+        if result is None:
+            self.correctness_display.insert(tk.END, "Error: Angle capture function not implemented!\n", "red")
+            self.correctness_display.tag_configure("red", foreground="red")
+            return
+
+        # Unpack the tuple
+        is_correct, elapsed_time = result
+        
+        if not is_correct:
+            # Display error and stop iteration
             self.correctness_display.insert(
                 tk.END,
-                f"Step {step_number}: Incorrect! Angle mismatch. (H: {dummy_horizontal_angle}, V: {dummy_vertical_angle})\n",
+                f"Step {step_number}: Incorrect! Angle mismatch.\n",
                 "red",
             )
             self.correctness_display.tag_configure("red", foreground="red")
-            self.alert_label.config(text=f"ALERT: Step {step_number} incorrect!")
-        else:
-            self.total_time += elapsed_time
-            self.correctness_display.insert(
-                tk.END,
-                f"Step {step_number}: Correct! Time: {elapsed_time:.2f}s\n",
-                "green",
-            )
-            self.correctness_display.tag_configure("green", foreground="green")
-            self.alert_label.config(text="")  # Clear alert
+            self.alert_label.config(text=f"ALERT: Step {step_number} incorrect! Stopping process.")
+            return  # Stop further steps
+
+        # Update total time
+        self.total_time += elapsed_time
+        self.correctness_display.insert(
+            tk.END,
+            f"Step {step_number}: Correct! Time: {elapsed_time:.2f}s\n",
+            "green",
+        )
+        self.correctness_display.tag_configure("green", foreground="green")
+        self.alert_label.config(text="")  # Clear alert
 
         # Move to the next step
         self.current_step += 1
@@ -113,12 +121,13 @@ class OperatorInterface:
             self.step_label.config(text="All steps completed!")
             self.correctness_display.insert(tk.END, f"Total Cycle Time: {self.total_time:.2f}s\n", "blue")
             self.correctness_display.tag_configure("blue", foreground="blue")
-            self.alert_label.config(text="")  # Clear any remaining alert
+            self.alert_label.config(text="")
 
     def navigate_back(self):
         """Navigate back to the parent interface."""
-        self.window.destroy()  # Close the OperatorInterface window
-        self.parent_interface.window.deiconify()  # Show the RotatableCameraInterface window
+        self.camera_module.stop_feed()
+        self.window.destroy()
+        self.parent_interface.window.deiconify()
 
     def on_close(self):
         """Handle cleanup when the window is closed."""
