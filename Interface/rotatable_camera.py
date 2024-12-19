@@ -2,7 +2,7 @@ import tkinter as tk
 # from tkinter import ttk
 import pandas as pd
 from operator_interface import OperatorInterface
-from camera_module import CameraModule
+from cam1 import CameraModule1
 import socket
 
 class RotatableCameraInterface:
@@ -17,16 +17,22 @@ class RotatableCameraInterface:
         self.process_name_set = False  # Track if the process name is set initially
 
         # Create an instance of camera module
-        self.camera_module = CameraModule()
+        self.camera_module = CameraModule1()
 
          # Initialize socket connection to RPi
-        self.rpi_host = "192.168.137.152"  # Replace with your RPi's IP address
+        self.rpi_host = "192.168.137.121"  # Replace with your RPi's IP address
         self.rpi_port = 5000
         self.socket = None
         
         # Initialize camera angles
         self.horizontal_angle = 90
         self.vertical_angle = 90
+
+        # Initialize zoom
+        self.zoom_factor = 1.0  # Initial zoom factor
+        self.zoom_step = 0.1  # Step size for zoom in/out
+        self.min_zoom = 1.0  # Minimum zoom (default frame)
+        self.max_zoom = 2.0  # Maximum zoom level
 
         # Left Frame for controls
         left_frame = tk.Frame(self.window)
@@ -61,6 +67,10 @@ class RotatableCameraInterface:
         tk.Button(angle_frame, text="Left", width=10, command=self.move_left).grid(row=1, column=0, padx=5)
         tk.Button(angle_frame, text="Right", width=10, command=self.move_right).grid(row=1, column=2, padx=5)
         tk.Button(angle_frame, text="Down", width=10, command=self.move_down).grid(row=2, column=1, pady=5)
+
+        # Add Zoom In and Zoom Out buttons
+        tk.Button(angle_frame, text="Zoom In", width=10, command=self.zoom_in).grid(row=0, column=3, padx=5)
+        tk.Button(angle_frame, text="Zoom Out", width=10, command=self.zoom_out).grid(row=2, column=3, padx=5)
 
         # Visualization buttons in a labeled box
         visualization_frame = tk.LabelFrame(left_frame, text="Visualization Controls", padx=10, pady=10)
@@ -157,8 +167,8 @@ class RotatableCameraInterface:
         df['step_number'] = df.groupby('process').cumcount() + 1
 
         # Save the DataFrame to CSV with both horizontal and vertical angles
-        df = df[['process', 'step_number', 'angle', 'angle', 'time']]  # Include horizontal and vertical angles
-        df.columns = ['process', 'step_number', 'horizontal_angle', 'vertical_angle', 'time']  # Rename columns
+        df = df[['process', 'step_number', 'angle', 'angle', 'time', 'zoom_factor']]  # Include horizontal and vertical angles
+        df.columns = ['process', 'step_number', 'horizontal_angle', 'vertical_angle', 'time', 'zoom_factor']  # Rename columns
 
         # Save to CSV
         df.to_csv("assembly_steps.csv", index=False)
@@ -189,7 +199,7 @@ class RotatableCameraInterface:
 
         # Launch Operator Interface
         print(f"Launching operator interface for process: {selected_process}")
-        OperatorInterface(selected_process, self)  # Pass `self` as a reference to the RotatableCameraInterface
+        OperatorInterface(selected_process, self)  # Pass self as a reference to the RotatableCameraInterface
 
     def send_angles_to_rpi(self):
         try:
@@ -219,3 +229,21 @@ class RotatableCameraInterface:
     def move_right(self):
         self.horizontal_angle = min(180, self.horizontal_angle + 1)
         self.send_angles_to_rpi()
+
+    def zoom_in(self):
+        try:
+            self.camera_module.zoom_in()  # Assume CameraModule1 has this method
+            if self.zoom_factor < self.max_zoom:
+                self.zoom_factor += self.zoom_step
+                print("Zoomed In")
+        except Exception as e:
+            print(f"Error zooming in: {e}")
+
+    def zoom_out(self):
+        try:
+            self.camera_module.zoom_out()  # Assume CameraModule1 has this method
+            if self.zoom_factor > self.min_zoom:
+                self.zoom_factor -= self.zoom_step
+                print("Zoomed Out")
+        except Exception as e:
+            print(f"Error zooming out: {e}")
