@@ -27,6 +27,7 @@ class RotatableCameraInterface:
         # Initialize camera angles
         self.horizontal_angle = 90
         self.vertical_angle = 90
+        self.send_angles_to_rpi()
 
         # Initialize zoom
         self.zoom_factor = 1.0  # Initial zoom factor
