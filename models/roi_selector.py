@@ -1,9 +1,10 @@
 import cv2
+import pandas as pd
 
-def select_roi(camera_index=0, resolution=(1920, 1080)): 
+def select_roi(camera_index=0, resolution=(1280, 720), csv_file="roi_selector.csv"):
     """
     Opens the camera, displays the feed, allows ROI selection, and shuts down the camera afterward.
-    Returns the top-left and bottom-right coordinates of the selected ROI.
+    Saves the top-left and bottom-right coordinates of the selected ROI into a CSV file.
     """
     global roi_x1, roi_y1, roi_x2, roi_y2, drawing
 
@@ -24,19 +25,17 @@ def select_roi(camera_index=0, resolution=(1920, 1080)):
             roi_x2, roi_y2 = x, y
 
     # Open the camera
-    print("Initializing camera...")
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(camera_index)
 
     if not cap.isOpened():
-        print(f"Error: Could not open camera .")
+        print("Error: Could not open camera.")
         return None, None, None, None
 
     # Set camera resolution
-    print(f"Setting resolution to {resolution[0]}x{resolution[1]}...")
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[0])
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
 
-    # Verify the resolution was applied
+    # Verify resolution
     actual_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     actual_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
     print(f"Camera resolution set to: {int(actual_width)}x{int(actual_height)}")
@@ -56,10 +55,6 @@ def select_roi(camera_index=0, resolution=(1920, 1080)):
         if roi_x1 != -1 and roi_y1 != -1 and roi_x2 != -1 and roi_y2 != -1:
             cv2.rectangle(frame, (roi_x1, roi_y1), (roi_x2, roi_y2), (0, 255, 0), 2)
 
-        # Display resolution info
-        cv2.putText(frame, f"Resolution: {resolution[0]}x{resolution[1]}", (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-
         # Show the frame
         cv2.imshow("Select ROI", frame)
 
@@ -71,11 +66,27 @@ def select_roi(camera_index=0, resolution=(1920, 1080)):
     # Release the camera and close the window
     cap.release()
     cv2.destroyAllWindows()
-    print("Camera feed closed.")
 
-    # Return the ROI coordinates
+    # Save ROI to a CSV file
     if roi_x1 != -1 and roi_y1 != -1 and roi_x2 != -1 and roi_y2 != -1:
         print(f"Selected ROI: Top-left ({roi_x1}, {roi_y1}), Bottom-right ({roi_x2}, {roi_y2})")
+        
+        # Create a DataFrame with the ROI data
+        roi_data = {
+            "TopLeft_X": [roi_x1],
+            "TopLeft_Y": [roi_y1],
+            "BottomRight_X": [roi_x2],
+            "BottomRight_Y": [roi_y2],
+        }
+        df = pd.DataFrame(roi_data)
+        
+        # Append to the CSV file if it exists, or create a new one
+        try:
+            df.to_csv(csv_file, mode="a", index=False, header=not pd.io.common.file_exists(csv_file))
+            print(f"ROI saved to {csv_file}")
+        except Exception as e:
+            print(f"Error saving ROI to CSV: {e}")
+        
         return roi_x1, roi_y1, roi_x2, roi_y2
     else:
         print("No ROI selected.")
@@ -84,5 +95,4 @@ def select_roi(camera_index=0, resolution=(1920, 1080)):
 
 # Test the ROI Selector
 if __name__ == "__main__":
-#
     select_roi(camera_index=0, resolution=(1920, 1080))
