@@ -19,7 +19,7 @@ class RotatableCameraInterface:
         # Create an instance of camera module
         self.camera_module = CameraModule1()
 
-         # Initialize socket connection to RPi
+        # Initialize socket connection to RPi
         self.rpi_host = "192.168.137.121"  # Replace with your RPi's IP address
         self.rpi_port = 5000
         self.socket = None
@@ -27,7 +27,7 @@ class RotatableCameraInterface:
         # Initialize camera angles
         self.horizontal_angle = 90
         self.vertical_angle = 90
-        self.send_angles_to_rpi()
+        #self.send_angles_to_rpi()
 
         # Initialize zoom
         self.zoom_factor = 1.0  # Initial zoom factor
@@ -134,7 +134,7 @@ class RotatableCameraInterface:
 
         if time.isdigit():
             self.steps.append({"step_number": self.step_number, "process": self.process_name.get().strip(), "angle": dummy_angle, "time": int(time)})
-            self.step_display.insert(tk.END, f"Step: {self.step_number}: Horizontal angle: {dummy_angle}, Vertical Angle: {dummy_angle}, Time: {time}s\n")
+            self.step_display.insert(tk.END, f"Step: {self.step_number}: Horizontal angle: {self.horizontal_angle}, Vertical Angle: {self.vertical_angle}, Time: {time}s\n")
             self.step_number += 1
 
             # Clear input fields
@@ -168,8 +168,8 @@ class RotatableCameraInterface:
         df['step_number'] = df.groupby('process').cumcount() + 1
 
         # Save the DataFrame to CSV with both horizontal and vertical angles
-        df = df[['process', 'step_number', 'angle', 'angle', 'time', 'zoom_factor']]  # Include horizontal and vertical angles
-        df.columns = ['process', 'step_number', 'horizontal_angle', 'vertical_angle', 'time', 'zoom_factor']  # Rename columns
+        df = df[['process', 'step_number', 'angle', 'angle', 'time']]  # Include horizontal and vertical angles
+        df.columns = ['process', 'step_number', 'horizontal_angle', 'vertical_angle', 'time']  # Rename columns
 
         # Save to CSV
         df.to_csv("assembly_steps.csv", index=False)
