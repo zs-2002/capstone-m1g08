@@ -74,9 +74,10 @@ class OperatorInterface:
 
         # Get step details from the CSV
         step_details = self.steps[self.current_step]
-        self.step_h_angle = step_details["horizontal_angle"]
-        self.step_v_angle = step_details["vertical_angle"]
+        self.step_h_angle = step_details["h_angle"]
+        self.step_v_angle = step_details["v_angle"]
         self.step_time = step_details["time"]
+        self.zoom_ratio = step_details["zoom_factor"]
 
         # Start asynchronous processing
         self.start_time = time.time()
@@ -179,7 +180,7 @@ class OperatorInterface:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.socket.connect((self.rpi_host, self.rpi_port))
 
-            data = f"{1},{self.horizontal_angle},{self.vertical_angle}" # 1 for cam1
+            data = f"{1},{self.step_h_angle},{self.step_h_angle}" # 1 for cam1
             self.socket.sendall(data.encode('utf-8'))
             print(f"Sent angles to RPi: {data}")
         except Exception as e:
