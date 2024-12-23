@@ -1,12 +1,14 @@
 import tkinter as tk
-# from tkinter import ttk
 import pandas as pd
-from operator_interface import OperatorInterface
 from cam1 import CameraModule1
 import socket
 
 class RotatableCameraInterface:
-    def __init__(self):
+    def __init__(self, return_to_main_callback=None, refresh_processes_callback=None):
+        # Store the callback functions
+        self.return_to_main_callback = return_to_main_callback
+        self.refresh_processes_callback = refresh_processes_callback
+
         # Create a new Toplevel window
         self.window = tk.Toplevel()
         self.window.title("Rotatable Camera Interface")
@@ -83,22 +85,13 @@ class RotatableCameraInterface:
         tk.Button(visualization_frame, text="Stop Visualization", command=self.stop_visualization).grid(row=1, column=0, padx=5, pady=5)
         tk.Button(visualization_frame, text="Save Process", command=self.save_steps).grid(row=1, column=1, padx=5, pady=5)
 
-        # Available processes
-        tk.Label(left_frame, text="Available Processes:").grid(row=4, column=0, columnspan=3, padx=10, pady=5)
-        self.process_list_display = tk.Text(left_frame, height=5, width=40, state='disabled')
-        self.process_list_display.grid(row=5, column=0, columnspan=3, padx=10, pady=5)
-
-        # Current process controls
-        tk.Label(left_frame, text="Type Current Process:").grid(row=6, column=0, sticky="e", padx=10, pady=5)
-        self.current_process_entry = tk.Entry(left_frame)
-        self.current_process_entry.grid(row=6, column=1, columnspan=1, padx=10, pady=5, sticky="w")
-
-        tk.Button(left_frame, text="Start Current Process", command=self.start_operator_interface).grid(row=6, column=2, padx=10, pady=5)
-
         # Steps display
         tk.Label(left_frame, text="Steps:").grid(row=7, column=0, columnspan=3, padx=10, pady=5)
         self.step_display = tk.Text(left_frame, height=20, width=65)
         self.step_display.grid(row=8, column=0, columnspan=3, padx=10, pady=5)
+
+        # Add a button to return to the main interface
+        tk.Button(self.window, text="Return to Main", command=self.return_to_main).grid(row=9, column=0, columnspan=3, pady=10)
 
     def start_visualization(self):
         # Show the video label when visualization starts
@@ -162,45 +155,26 @@ class RotatableCameraInterface:
             return
 
         # Convert the steps to a DataFrame
-        df = pd.DataFrame(self.steps)
+        new_steps_df = pd.DataFrame(self.steps)
+        new_steps_df['step_number'] = new_steps_df.groupby('process').cumcount() + 1
+        new_steps_df = new_steps_df[['process', 'step_number', 'h_angle', 'v_angle', 'time', 'zoom_factor']]
 
-        # Reset step numbering for each process
-        df['step_number'] = df.groupby('process').cumcount() + 1
+        try:
+            existing_steps_df = pd.read_csv("assembly_steps.csv")
+            combined_steps_df = pd.concat([existing_steps_df, new_steps_df], ignore_index=True)
+        except FileNotFoundError:
+            combined_steps_df = new_steps_df
 
-        # Save the DataFrame to CSV with both horizontal and vertical angles
-        df = df[['process', 'step_number', 'h_angle', 'v_angle', 'time', 'zoom_factor']]  # Include horizontal and vertical angles
-        df.columns = ['process', 'step_number', 'h_angle', 'v_angle', 'time', 'zoom_factor']  # Rename columns
-
-        # Save to CSV
-        df.to_csv("assembly_steps.csv", index=False)
-
+        combined_steps_df.to_csv("assembly_steps.csv", index=False)
         tk.Label(self.window, text="Steps Saved!", fg="green").grid(row=11, column=0, columnspan=2)
 
-        # List all available processes
-        processes = df['process'].unique()
-        self.process_list_display.config(state='normal')
-        self.process_list_display.delete(1.0, tk.END)
-        self.process_list_display.insert(tk.END, "\n".join(processes))
-        self.process_list_display.config(state='disabled')
-        print("Available processes:", processes)  # Debugging line
+        if self.refresh_processes_callback:
+            self.refresh_processes_callback()
 
-
-    def start_operator_interface(self):
-        selected_process = self.current_process_entry.get().strip()
-        print("Typed process in start_operator_interface:", selected_process)  # Debugging line
-
-        # Ensure the selected process exists in saved processes
-        df = pd.read_csv("assembly_steps.csv")
-        available_processes = df['process'].unique()
-        print("Available processes:", available_processes)  # Debugging line
-
-        if selected_process not in available_processes:
-            tk.Label(self.window, text="Invalid process selected!", fg="red").grid(row=12, column=0, columnspan=2)
-            return
-
-        # Launch Operator Interface
-        print(f"Launching operator interface for process: {selected_process}")
-        OperatorInterface(selected_process, self)  # Pass self as a reference to the RotatableCameraInterface
+    def return_to_main(self):
+        if self.return_to_main_callback:
+            self.window.destroy()
+            self.return_to_main_callback()
 
     def send_angles_to_rpi(self):
         try:
