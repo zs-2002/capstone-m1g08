@@ -6,7 +6,7 @@ from cam1 import CameraModule1
 import socket
 
 class RotatableCameraInterface:
-    def _init_(self):
+    def __init__(self):
         # Create a new Toplevel window
         self.window = tk.Toplevel()
         self.window.title("Rotatable Camera Interface")
@@ -133,7 +133,7 @@ class RotatableCameraInterface:
         dummy_angle = 45
 
         if time.isdigit():
-            self.steps.append({"step_number": self.step_number, "process": self.process_name.get().strip(), "angle": dummy_angle, "time": int(time), "zoom_factor": self.zoom_factor})
+            self.steps.append({"step_number": self.step_number, "process": self.process_name.get().strip(), "h_angle": self.horizontal_angle, "v_angle": self.vertical_angle, "time": int(time), "zoom_factor": self.zoom_factor})
             self.step_display.insert(tk.END, f"Step: {self.step_number}: Horizontal angle: {self.horizontal_angle}, Vertical Angle: {self.vertical_angle}, Time: {time}s, Zoom Factor: {self.zoom_factor}\n")
             self.step_number += 1
 
@@ -168,8 +168,8 @@ class RotatableCameraInterface:
         df['step_number'] = df.groupby('process').cumcount() + 1
 
         # Save the DataFrame to CSV with both horizontal and vertical angles
-        df = df[['process', 'step_number', 'angle', 'angle', 'time', 'zoom_factor']]  # Include horizontal and vertical angles
-        df.columns = ['process', 'step_number', 'horizontal_angle', 'vertical_angle', 'time', 'zoom_factor']  # Rename columns
+        df = df[['process', 'step_number', 'h_angle', 'v_angle', 'time', 'zoom_factor']]  # Include horizontal and vertical angles
+        df.columns = ['process', 'step_number', 'h_angle', 'v_angle', 'time', 'zoom_factor']  # Rename columns
 
         # Save to CSV
         df.to_csv("assembly_steps.csv", index=False)
