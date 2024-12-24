@@ -32,6 +32,21 @@ def calculate_iou(boxA, boxB):
     iou = interArea / float(boxAArea + boxBArea - interArea)
     return iou
 
+def resize_frame(frame, target_width, target_height):
+    # Get original dimensions
+    h, w = frame.shape[:2]
+
+    # Calculate the scaling factor
+    scaling_factor = min(target_width / w, target_height / h)
+
+    # Calculate new dimensions
+    new_width = int(w * scaling_factor)
+    new_height = int(h * scaling_factor)
+
+    # Resize the frame
+    resized_frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+    return resized_frame
+
 # Main detection function
 def start_detection(roi_coordinates, video_label, stop_event):
     """Start detection using the YOLO model within the given ROI."""
@@ -42,13 +57,20 @@ def start_detection(roi_coordinates, video_label, stop_event):
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[0])
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
 
-    actual_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-    actual_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     print(f"Detection resolution set to: {int(actual_width)}x{int(actual_height)}")
 
+    if actual_width != resolution[0] or actual_height != resolution[1]:
+        print("Warning: Camera feed size differs from desired resolution.")
+        
     model = YOLO("models/weights/best.pt")
 
     roi_x1, roi_y1, roi_x2, roi_y2 = roi_coordinates
+    
+    # Target dimensions for Tkinter display
+    target_width = 500
+    target_height = 400
 
     try:
         while not stop_event.is_set():  # Check if the stop signal has been set
@@ -61,7 +83,10 @@ def start_detection(roi_coordinates, video_label, stop_event):
 
             # Draw ROI on the frame
             cv2.rectangle(img, (roi_x1, roi_y1), (roi_x2, roi_y2), (0, 255, 0), 2)
-
+            
+            # Resize the frame for Tkinter display
+            img_resized = resize_frame(img, target_width, target_height)
+            
             # Check if the video_label widget still exists
             if not video_label.winfo_exists():
                 print("Video label no longer exists. Exiting detection loop.")
@@ -170,7 +195,7 @@ def start_detection(roi_coordinates, video_label, stop_event):
                             (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
             # Update video label in Tkinter
-            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
             img_pil = ImageTk.PhotoImage(image=Image.fromarray(img_rgb))
             video_label.config(image=img_pil)
             video_label.image = img_pil
