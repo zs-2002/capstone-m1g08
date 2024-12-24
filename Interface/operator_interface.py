@@ -1,193 +1,200 @@
 import tkinter as tk
 import pandas as pd
-import threading
-import cv2
-import socket
-from detection_script import start_detection
+import time
 from check_step_cam import CameraModule
-
+import socket
+import cv2
 
 class OperatorInterface:
-    def __init__(self, selected_process, parent_interface):
+    def __init__(self, selected_process, parent_interface, detection_interface=None):
         self.window = tk.Toplevel()
-        self.window.title("Operator and Detection Interface")
-        self.parent_interface = parent_interface  # Reference to the parent interface
+        self.window.title('Operator Interface')
+        self.parent_interface = parent_interface  # Reference to the RotatableCameraInterface
+        self.detection_interface = detection_interface  # Reference to the OpenDetectionInterface
+        
+        # Load steps from supervisor based on selected process
+        try:
+            df = pd.read_csv("assembly_steps.csv")
+            self.steps = df[df['process'] == selected_process].to_dict('records')
+        except FileNotFoundError:
+            tk.Label(self.window, text="Error: No Steps Defined!", fg="red").grid(row=0, column=0, columnspan=2, pady=10)
+            return
 
-        # Set up the main layout
-        self.main_frame = tk.Frame(self.window)
-        self.main_frame.pack(fill="both", expand=True)
+        if not self.steps:
+            tk.Label(self.window, text="Error: No Steps for Selected Process!", fg="red").grid(row=0, column=0, columnspan=2, pady=10)
+            return
 
-        # Left Frame: Operator Interface
-        self.left_frame = tk.Frame(self.main_frame, width=400)
-        self.left_frame.pack(side="left", fill="y", padx=10, pady=10)
-
-        # Right Frame: Detection Interface
-        self.right_frame = tk.Frame(self.main_frame, width=600)
-        self.right_frame.pack(side="right", fill="both", expand=True, padx=10, pady=10)
-
-        # Attributes
-        self.steps = []
         self.current_step = 0
-        self.total_time = 0
-        self.detection_running = True
-        self.logged_data = []
+        self.total_time = 0  # Track total cycle time
+        self.step_h_angle = 90
+        self.step_v_angle = 90
+        self.step_time = 0
 
-        # Socket communication attributes
-        self.rpi_host = "192.168.137.121"  # Replace with Raspberry Pi's IP address
+        # Initialize socket connection to RPi
+        self.rpi_host = "192.168.137.121"  # Replace with your RPi's IP address
         self.rpi_port = 5000
         self.socket = None
+        # self.send_angles_to_rpi()
 
-        # Load the ROI from CSV
-        self.roi_coordinates = self.load_roi_coordinates()
+        # Camera feed setup
+        self.camera_module = CameraModule()
+        self.video_label = tk.Label(self.window, bg="black")
+        self.video_label.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
 
-        # Load steps from supervisor based on selected process
-        self.load_process_steps(selected_process)
+        # Start the camera feed
+        self.camera_module.start_feed(self.video_label)
 
-        # Operator Interface in Left Frame
-        self.operator_camera_module = CameraModule()
-        self.setup_operator_interface()
+        # Step display
+        self.step_label = tk.Label(self.window, text="Current Step: ", font=("Arial", 14))
+        self.step_label.grid(row=1, column=0, columnspan=2, pady=10)
 
-        # Detection Interface in Right Frame
-        self.detection_camera_module = CameraModule()
-        self.setup_detection_interface()
+        # Correctness display
+        self.correctness_display = tk.Text(self.window, height=10, width=50, font=("Arial", 12))
+        self.correctness_display.grid(row=2, column=0, columnspan=2, pady=10)
 
-        # Establish socket connection to Raspberry Pi
-        self.connect_to_rpi()
+        # Alert display
+        self.alert_label = tk.Label(self.window, text="", font=("Arial", 14), fg="red")
+        self.alert_label.grid(row=3, column=0, columnspan=2, pady=10)
+
+        # Start processing steps
+        self.start_time = time.time()
+        self.start_step()
+
+        # Add a "Back to Supervisor Interface" button
+        tk.Button(self.window, text="Finish Process", command=self.navigate_back).grid(row=4, column=0, columnspan=2, pady=10)
 
         # Bind cleanup function to close window
         self.window.protocol("WM_DELETE_WINDOW", self.on_close)
 
-    def load_roi_coordinates(self):
-        """Load the last row of ROI coordinates from CSV."""
-        try:
-            df = pd.read_csv("roi_coordinates.csv")
-            roi = df.iloc[-1].tolist()  # Get the last row
-            print(f"Loaded ROI from last row: {roi}")
-            return roi
-        except FileNotFoundError:
-            print("ROI file not found.")
-            return None
-        except Exception as e:
-            print(f"Error loading ROI: {e}")
-            return None
+    def start_step(self):
+        if self.current_step >= len(self.steps):
+            self.step_label.config(text="All steps completed!")
+            self.correctness_display.insert(tk.END, f"Total Cycle Time: {self.total_time:.2f}s\n", "blue")
+            self.correctness_display.tag_configure("blue", foreground="blue")
+            return
 
-    def load_process_steps(self, selected_process):
-        """Load process steps for the operator interface."""
-        try:
-            df = pd.read_csv("assembly_steps.csv")
-            self.steps = df[df['process'] == selected_process].to_dict("records")
-        except FileNotFoundError:
-            print("Error: No steps defined!")
+        # Get step details from the CSV
+        step_details = self.steps[self.current_step]
+        self.step_h_angle = step_details["h_angle"]
+        self.step_v_angle = step_details["v_angle"]
+        self.step_time = step_details["time"]
+        self.zoom_ratio = step_details["zoom_factor"]
 
-    def connect_to_rpi(self):
-        """Establish a socket connection to the Raspberry Pi."""
-        try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.connect((self.rpi_host, self.rpi_port))
-            print(f"Connected to Raspberry Pi at {self.rpi_host}:{self.rpi_port}")
-        except Exception as e:
-            print(f"Error connecting to Raspberry Pi: {e}")
-            self.socket = None
+        # Start asynchronous processing
+        self.start_time = time.time()
+        self.process_step_async()
 
-    def send_angles_to_rpi(self, h_angle, v_angle):
-        """Send angles to the Raspberry Pi via socket."""
-        try:
-            if self.socket:
-                data = f"{1},{h_angle},{v_angle}"  # Format: <camera_id>,<h_angle>,<v_angle>
-                self.socket.sendall(data.encode("utf-8"))
-                print(f"Sent angles to RPi: {data}")
-        except Exception as e:
-            print(f"Error sending angles to RPi: {e}")
+    def process_step_async(self):
+        result = self.check_step()
+        if result is None:
+            self.correctness_display.insert(tk.END, "Error: Angle capture function not implemented!\n", "red")
+            self.correctness_display.tag_configure("red", foreground="red")
+            return
 
-    def setup_operator_interface(self):
-        """Set up the operator interface in the left frame."""
-        tk.Label(self.left_frame, text="Operator Interface", font=("Arial", 16)).pack(pady=10)
+        # Schedule handling the result
+        self.window.after(0, self.handle_step_result, result)
 
-        # Step display
-        self.step_label = tk.Label(self.left_frame, text="Current Step: ", font=("Arial", 14))
-        self.step_label.pack(pady=10)
+    def handle_step_result(self, result):
+        is_correct, elapsed_time = result
 
-        # Correctness display
-        self.correctness_display = tk.Text(self.left_frame, height=15, width=40, font=("Arial", 12))
-        self.correctness_display.pack(pady=10)
+        if not is_correct:
+            self.correctness_display.insert(
+                tk.END,
+                f"Step {self.current_step + 1}: Incorrect! Angle mismatch.\n",
+                "red",
+            )
+            self.correctness_display.tag_configure("red", foreground="red")
+            self.alert_label.config(text=f"ALERT: Step {self.current_step + 1} incorrect! Stopping process.")
+            return
 
-        # Alert display
-        self.alert_label = tk.Label(self.left_frame, text="", font=("Arial", 14), fg="red")
-        self.alert_label.pack(pady=10)
+        # Update total time
+        self.total_time += elapsed_time
+        self.correctness_display.insert(
+            tk.END,
+            f"Step {self.current_step + 1}: Correct! Time: {elapsed_time:.2f}s\n",
+            "green",
+        )
+        self.correctness_display.tag_configure("green", foreground="green")
+        self.alert_label.config(text="")  # Clear alert
 
-        # Video feed label for the operator
-        self.operator_video_label = tk.Label(self.left_frame, bg="black", text="Operator Feed")
-        self.operator_video_label.pack(pady=10)
+        # Move to the next step
+        self.current_step += 1
+        if self.current_step < len(self.steps):
+            next_step_number = self.steps[self.current_step]["step_number"]
+            self.step_label.config(text=f"Current Step: {next_step_number}")
+            self.window.after(1000, self.start_step)
+        else:
+            self.step_label.config(text="All steps completed!")
+            self.correctness_display.insert(tk.END, f"Total Cycle Time: {self.total_time:.2f}s\n", "blue")
+            self.correctness_display.tag_configure("blue", foreground="blue")
+            self.alert_label.config(text="")
 
-        # Add a "Back to Supervisor Interface" button
-        tk.Button(self.left_frame, text="Back to Supervisor Interface", command=self.navigate_back).pack(pady=10)
+    def check_step(self):
+        """
+        Captures angles from the camera, detects hands, and determines if the step is correct.
+        Returns a tuple: (is_correct: bool, elapsed_time: float)
+        """
+        #self.send_angles_to_rpi()
+        
+        # Start the timer for hand detection
+        start_time = time.time()
+        hand_detected_time = 0  # Duration for which hand is detected
+        detection_start = None  # Start time of continuous detection
 
-        # Start the operator feed
-        self.start_operator_feed()
+        # Loop to monitor the hand detection
+        while time.time() - start_time < self.step_time + 2:  # Allow a 2-second buffer for detection
+            frame = self.camera_module.get_current_frame()  # Assuming CameraModule can provide a frame
+            if frame is None:
+                break
 
-    def setup_detection_interface(self):
-        """Set up the detection interface in the right frame."""
-        tk.Label(self.right_frame, text="Detection Interface", font=("Arial", 16)).pack(pady=10)
+            # Convert frame to RGB for MediaPipe processing
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        # Video feed label for detection
-        self.detection_video_label = tk.Label(self.right_frame, bg="black", text="Detection Feed")
-        self.detection_video_label.pack(pady=10)
+            # Process the frame for hand detection
+            results = self.camera_module.mp_hands.process(frame_rgb)
+            if results.multi_hand_landmarks:
+                # Hand detected
+                if detection_start is None:
+                    detection_start = time.time()  # Start detection timer
+                else:
+                    # Accumulate detection time
+                    hand_detected_time += time.time() - detection_start
+                    detection_start = time.time()  # Reset start time for next iteration
+            else:
+                detection_start = None  # Reset detection start if hand is not detected
 
-        # Logged data display
-        self.csv_frame = tk.Frame(self.right_frame, bg="white", bd=2, relief="ridge")
-        self.csv_frame.pack(pady=10, fill="both", expand=True)
+            # Exit loop if detection time meets or exceeds required step time
+            if hand_detected_time >= self.step_time:
+                is_correct = True
+                elapsed_time = time.time() - start_time
+                return is_correct, elapsed_time
 
-        self.csv_label = tk.Label(self.csv_frame, text="Logged Data", font=("Arial", 14), bg="white")
-        self.csv_label.pack()
+        # If loop exits without sufficient hand detection time
+        is_correct = False
+        elapsed_time = time.time() - start_time
+        return is_correct, elapsed_time
 
-        self.start_detection_feed()
+    
+    # def send_angles_to_rpi(self):
+    #     try:
+    #         if self.socket is None:
+    #             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #             self.socket.connect((self.rpi_host, self.rpi_port))
 
-    def start_operator_feed(self):
-        """Start the operator video feed."""
-        def update_operator_feed():
-            while self.detection_running:
-                frame = self.operator_camera_module.get_current_frame()
-                if frame is None:
-                    continue
-
-                # Convert the frame to an image that Tkinter can display
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                img = cv2.resize(frame_rgb, (320, 240))
-                img_tk = self.operator_camera_module.convert_to_tk_image(img)
-
-                self.operator_video_label.config(image=img_tk)
-                self.operator_video_label.image = img_tk
-
-        threading.Thread(target=update_operator_feed, daemon=True).start()
-
-    def start_detection_feed(self):
-        """Start the detection video feed."""
-        def update_detection_feed():
-            while self.detection_running:
-                frame = self.detection_camera_module.get_current_frame()
-                if frame is None or not self.roi_coordinates:
-                    continue
-
-                # Process the frame for detection
-                detected_frame = start_detection(frame, self.roi_coordinates)
-
-                # Convert the frame to an image that Tkinter can display
-                frame_rgb = cv2.cvtColor(detected_frame, cv2.COLOR_BGR2RGB)
-                img = cv2.resize(frame_rgb, (320, 240))
-                img_tk = self.detection_camera_module.convert_to_tk_image(img)
-
-                self.detection_video_label.config(image=img_tk)
-                self.detection_video_label.image = img_tk
-
-        threading.Thread(target=update_detection_feed, daemon=True).start()
+    #         data = f"{1},{self.step_h_angle},{self.step_h_angle}" # 1 for cam1
+    #         self.socket.sendall(data.encode('utf-8'))
+    #         print(f"Sent angles to RPi: {data}")
+    #     except Exception as e:
+    #         print(f"Error sending angles to RPi: {e}")
+    #         self.socket = None  # Reset the socket if an error occurs
 
     def navigate_back(self):
         """Navigate back to the parent interface."""
-        self.detection_running = False
-        self.operator_camera_module.stop_feed()
-        self.detection_camera_module.stop_feed()
+        self.camera_module.stop_feed()
+        if self.detection_interface:
+            self.detection_interface.stop_detection()  # Stop detection before navigating back
         self.window.destroy()
-        self.parent_interface.deiconify()
+        self.parent_interface.window.deiconify()
 
     def on_close(self):
         """Handle cleanup when the window is closed."""
