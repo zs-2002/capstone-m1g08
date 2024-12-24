@@ -34,7 +34,7 @@ class OperatorInterface:
         self.rpi_host = "192.168.137.121"  # Replace with your RPi's IP address
         self.rpi_port = 5000
         self.socket = None
-        # self.send_angles_to_rpi()
+        self.send_angles_to_rpi()
 
         # Camera feed setup
         self.camera_module = CameraModule()
@@ -134,7 +134,7 @@ class OperatorInterface:
         Captures angles from the camera, detects hands, and determines if the step is correct.
         Returns a tuple: (is_correct: bool, elapsed_time: float)
         """
-        #self.send_angles_to_rpi()
+        self.send_angles_to_rpi()
         
         # Start the timer for hand detection
         start_time = time.time()
@@ -175,18 +175,18 @@ class OperatorInterface:
         return is_correct, elapsed_time
 
     
-    # def send_angles_to_rpi(self):
-    #     try:
-    #         if self.socket is None:
-    #             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #             self.socket.connect((self.rpi_host, self.rpi_port))
+    def send_angles_to_rpi(self):
+        try:
+            if self.socket is None:
+                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.socket.connect((self.rpi_host, self.rpi_port))
 
-    #         data = f"{1},{self.step_h_angle},{self.step_h_angle}" # 1 for cam1
-    #         self.socket.sendall(data.encode('utf-8'))
-    #         print(f"Sent angles to RPi: {data}")
-    #     except Exception as e:
-    #         print(f"Error sending angles to RPi: {e}")
-    #         self.socket = None  # Reset the socket if an error occurs
+            data = f"{1},{self.step_h_angle},{self.step_h_angle}" # 1 for cam1
+            self.socket.sendall(data.encode('utf-8'))
+            print(f"Sent angles to RPi: {data}")
+        except Exception as e:
+            print(f"Error sending angles to RPi: {e}")
+            self.socket = None  # Reset the socket if an error occurs
 
     def navigate_back(self):
         """Navigate back to the parent interface."""
