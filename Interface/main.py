@@ -3,6 +3,7 @@ from rotatable_camera import RotatableCameraInterface
 from wide_angle_camera import WideAngleCameraInterface
 import pandas as pd
 from operator_interface import OperatorInterface
+from open_detection import OpenDetectionInterface
 
 # Function to open wide-angle camera interface
 def open_wide_camera():
@@ -43,13 +44,20 @@ def load_available_processes():
 # Function to start operator interface
 def start_operator_interface():
     selected_process = current_process_entry.get().strip()
+    detection_window = None
     try:
         # Validate and start the operator interface
         df = pd.read_csv("assembly_steps.csv")
         if selected_process not in df['process'].unique():
             tk.Label(root, text="Invalid process selected!", fg="red").pack(pady=5)
             return
-        OperatorInterface(selected_process, root)
+        
+        detection_window = OpenDetectionInterface()
+        detection_window.window.geometry(f"700x700+560+100")
+        
+        operator_window = OperatorInterface(selected_process, root, detection_interface=detection_window)
+        operator_window.window.geometry(f"500x700+50+100")
+        
     except FileNotFoundError:
         tk.Label(root, text="No processes saved!", fg="red").pack(pady=5)
         
