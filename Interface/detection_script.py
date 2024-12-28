@@ -32,23 +32,16 @@ def calculate_iou(boxA, boxB):
     iou = interArea / float(boxAArea + boxBArea - interArea)
     return iou
 
+# Helper function to resize the frame
 def resize_frame(frame, target_width, target_height):
-    # Get original dimensions
     h, w = frame.shape[:2]
-
-    # Calculate the scaling factor
     scaling_factor = min(target_width / w, target_height / h)
-
-    # Calculate new dimensions
     new_width = int(w * scaling_factor)
     new_height = int(h * scaling_factor)
-
-    # Resize the frame
-    resized_frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
-    return resized_frame
+    return cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
 
 # Main detection function
-def start_detection(roi_coordinates, video_label, stop_event):
+def start_detection(roi_coordinates, video_label=None, stop_event=None):
     """Start detection using the YOLO model within the given ROI."""
     global tracked_objects  # Ensure tracked_objects is accessible across function calls
 
@@ -67,7 +60,8 @@ def start_detection(roi_coordinates, video_label, stop_event):
     model = YOLO("models/weights/best.pt")
 
     roi_x1, roi_y1, roi_x2, roi_y2 = roi_coordinates
-    
+    print(f"ROI Coordinates: ({roi_x1}, {roi_y1}), ({roi_x2}, {roi_y2})")  # Debugging print
+
     # Target dimensions for Tkinter display
     target_width = 500
     target_height = 400
@@ -83,25 +77,18 @@ def start_detection(roi_coordinates, video_label, stop_event):
 
             # Draw ROI on the frame
             cv2.rectangle(img, (roi_x1, roi_y1), (roi_x2, roi_y2), (0, 255, 0), 2)
-            
-            # Resize the frame for Tkinter display
-            img_resized = resize_frame(img, target_width, target_height)
-            
-            # Check if the video_label widget still exists
-            if not video_label.winfo_exists():
-                print("Video label no longer exists. Exiting detection loop.")
-                break
 
-            # Temporary storage for currently detected objects
-            detected_objects = []
-
+            # Process detections
+            detected_objects = []  # Temporary storage for currently detected objects
             for r in results:
                 boxes = r.boxes
-
                 for box in boxes:
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     class_id = int(box.cls[0])
                     class_name = classNames[class_id]
+
+                    # Debugging print for bounding box and class name
+                    print(f"Detected: {class_name} at ({x1}, {y1}), ({x2}, {y2})")
 
                     # Detect "person" everywhere
                     if class_name == "person":
@@ -194,13 +181,19 @@ def start_detection(roi_coordinates, video_label, stop_event):
                 cv2.putText(img, f"{tracked['class_name']} {obj_id}: {elapsed_time:.2f}s",
                             (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-            # Update video label in Tkinter
-            img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
-            img_pil = ImageTk.PhotoImage(image=Image.fromarray(img_rgb))
-            video_label.config(image=img_pil)
-            video_label.image = img_pil
-
-            time.sleep(0.03)
+            # Resize the frame for GUI (if using Tkinter)
+            if video_label:
+                img_resized = resize_frame(img, target_width, target_height)
+                img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
+                img_pil = ImageTk.PhotoImage(image=Image.fromarray(img_rgb))
+                video_label.config(image=img_pil)
+                video_label.image = img_pil
+            else:
+                # Show the frame using OpenCV
+                cv2.imshow("Detection Feed", img)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    stop_event.set()
+                    break
 
     finally:
         cap.release()
@@ -213,3 +206,4 @@ def start_detection(roi_coordinates, video_label, stop_event):
         print("ROI data saved to time_data.csv")
     else:
         print("No data logged.")
+        
