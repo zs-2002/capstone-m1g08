@@ -60,12 +60,13 @@ def indicate_action(cam_id):
     pi.write(led_pins[cam_id]["red"], 0)  # Turn off red LED
     pi.write(led_pins[cam_id]["green"], 1)  # Turn on green LED
     pi.write(buzzer_pins[cam_id], 1)  # Turn on buzzer
-    time.sleep(0.1)  # Beep for 100 ms
+    time.sleep(0.05)  # Beep for 100 ms
     pi.write(buzzer_pins[cam_id], 0)  # Turn off buzzer
-    pi.write(led_pins[cam_id]["green"], 0)  # Reset green LED after action
 
 def blink_idle_red():
     """Blink red LEDs for all cameras in idle state."""
+    pi.write(led_pins[1]["green"], 0)
+    pi.write(led_pins[2]["green"], 0)
     current_time = time.time()
     for cam_id in led_pins.keys():
         if current_time - last_blink_time[cam_id] > 0.5:  # Toggle every 0.5 seconds
