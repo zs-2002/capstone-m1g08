@@ -2,35 +2,76 @@ import socket
 import pigpio
 import time
 
+# Idle blinking variables
+last_blink_time = {}
+led_blink_state = {}
+
 # Initialize pigpio
 pi = pigpio.pi()
 if not pi.connected:
     print("Failed to connect to pigpio daemon.")
     exit()
 
-# GPIO Pin Setup for servos
+# GPIO Pin Setup for servos, LEDs, and buzzers
 servo_pins = {
     1: {"horizontal": 17, "vertical": 18},  # Camera 1 pins
     2: {"horizontal": 22, "vertical": 23},  # Camera 2 pins
 }
 
+led_pins = {
+    1: {"red": 24, "green": 25},  # Camera 1 LEDs
+    2: {"red": 27, "green": 4},  # Camera 2 LEDs
+}
+
+buzzer_pins = {
+    1: 5,  # Camera 1 buzzer
+    2: 6,  # Camera 2 buzzer
+}
+
 # Define PWM frequency and initial position (middle)
 PWM_FREQ = 50
-INITIAL_POSITION = 1500  # 1500 us (middle position for most servos)
+INITIAL_POSITION = 1650  # Default position for servos
 
-# Initialize PWM for each servo
-pwm = {}
+# Initialize servos
 for cam_id, pins in servo_pins.items():
-    pwm[cam_id] = {}
-    for servo, pin in pins.items():
+    for pin in pins.values():
         pi.set_mode(pin, pigpio.OUTPUT)
-        pwm[cam_id][servo] = INITIAL_POSITION
         pi.set_servo_pulsewidth(pin, INITIAL_POSITION)
+
+# Initialize LEDs and buzzers
+for cam_id, leds in led_pins.items():
+    for pin in leds.values():
+        pi.set_mode(pin, pigpio.OUTPUT)
+        pi.write(pin, 0)  # Turn off LEDs initially
+    pi.set_mode(buzzer_pins[cam_id], pigpio.OUTPUT)
+    pi.write(buzzer_pins[cam_id], 0)  # Turn off buzzers initially
+
+    # Initialize idle state variables
+    last_blink_time[cam_id] = time.time()
+    led_blink_state[cam_id] = False
 
 def set_angle(pin, angle):
     """Convert angle to pulse width and set servo position."""
-    pulsewidth = 500 + (angle / 180) * 2000  # Convert angle to pulse width (500 to 2500 us)
+    pulsewidth = 900 + (angle / 180) * 1500  # Convert angle to pulse width (900 to 2400 us)
     pi.set_servo_pulsewidth(pin, pulsewidth)
+
+def indicate_action(cam_id):
+    """Indicate action with LEDs and buzzer."""
+    pi.write(led_pins[cam_id]["red"], 0)  # Turn off red LED
+    pi.write(led_pins[cam_id]["green"], 1)  # Turn on green LED
+    pi.write(buzzer_pins[cam_id], 1)  # Turn on buzzer
+    time.sleep(0.1)  # Beep for 100 ms
+    pi.write(buzzer_pins[cam_id], 0)  # Turn off buzzer
+    pi.write(led_pins[cam_id]["green"], 0)  # Reset green LED after action
+
+def blink_idle_red():
+    """Blink red LEDs for all cameras in idle state."""
+    current_time = time.time()
+    for cam_id in led_pins.keys():
+        if current_time - last_blink_time[cam_id] > 0.5:  # Toggle every 0.5 seconds
+            last_blink_time[cam_id] = current_time
+            led_blink_state[cam_id] = not led_blink_state[cam_id]
+            pi.write(led_pins[cam_id]["red"], int(led_blink_state[cam_id]))
 
 # Network Setup
 host = '0.0.0.0'
@@ -42,10 +83,18 @@ print("Waiting for connections...")
 
 try:
     while True:
-        # Wait for a connection
-        conn, addr = server_socket.accept()
+        # Idle state: Blink red LEDs while waiting for a connection
+        while True:
+            blink_idle_red()
+            server_socket.settimeout(0.1)  # Allow blinking during idle
+            try:
+                conn, addr = server_socket.accept()
+                break
+            except socket.timeout:
+                continue
+
         print(f"Connected by {addr}")
-        
+
         try:
             while True:
                 data = conn.recv(1024).decode()
@@ -59,9 +108,10 @@ try:
                     print(f"Camera {cam_id}: Horizontal Angle={horizontal_angle}, Vertical Angle={vertical_angle}")
                     
                     # Set servo angles for the specified camera
-                    if cam_id in pwm:
+                    if cam_id in servo_pins:
                         set_angle(servo_pins[cam_id]["horizontal"], horizontal_angle)
                         set_angle(servo_pins[cam_id]["vertical"], vertical_angle)
+                        indicate_action(cam_id)  # Change LED and beep
                     else:
                         print(f"Invalid camera ID: {cam_id}")
                 except ValueError:
@@ -76,5 +126,9 @@ finally:
     for cam_id, pins in servo_pins.items():
         for pin in pins.values():
             pi.set_servo_pulsewidth(pin, 0)  # Stop the servo
+    for cam_id, leds in led_pins.items():
+        for pin in leds.values():
+            pi.write(pin, 0)  # Turn off LEDs
+        pi.write(buzzer_pins[cam_id], 0)  # Turn off buzzers
     pi.stop()
     server_socket.close()
