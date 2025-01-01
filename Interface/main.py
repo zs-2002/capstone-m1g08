@@ -1,5 +1,6 @@
 import tkinter as tk
 from rotatable_camera import RotatableCameraInterface
+from rotatable_camera_2 import RotatableCameraInterface_2
 from wide_angle_camera import WideAngleCameraInterface
 import pandas as pd
 from operator_interface import OperatorInterface
@@ -16,6 +17,14 @@ def open_rotatable_camera():
         return_to_main_callback=return_to_main,
         refresh_processes_callback=load_available_processes
     )
+
+def open_rotatable_camera_2():
+    # Create the interface and pass the necessary callbacks
+    RotatableCameraInterface_2(
+        return_to_main_callback=return_to_main,
+        refresh_processes_callback=load_available_processes
+    )
+
 def return_to_main():
     # If necessary, perform any cleanup actions here
     print("Returning to the main interface.")
@@ -77,7 +86,7 @@ btn_rotatable1 = tk.Button(root, text="Rotatable Camera 1", command=open_rotatab
 btn_rotatable1.pack(pady=10)
 
 # Button for rotatable camera 2
-btn_rotatable2 = tk.Button(root, text="Rotatable Camera 2", command=open_rotatable_camera, width=20, height=2)
+btn_rotatable2 = tk.Button(root, text="Rotatable Camera 2", command=open_rotatable_camera_2, width=20, height=2)
 btn_rotatable2.pack(pady=10)
 
 # Section for processes

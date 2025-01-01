@@ -1,7 +1,7 @@
 import cv2
 import pandas as pd
 
-def select_roi(camera_index=0, resolution=(1280, 720), csv_file="roi_selector.csv"):
+def select_roi(camera_index=2, resolution=(1280, 720), csv_file="roi_selector.csv"):
     """
     Opens the camera, displays the feed, allows ROI selection, and shuts down the camera afterward.
     Saves the top-left and bottom-right coordinates of the selected ROI into a CSV file.
@@ -25,7 +25,7 @@ def select_roi(camera_index=0, resolution=(1280, 720), csv_file="roi_selector.cs
             roi_x2, roi_y2 = x, y
 
     # Open the camera
-    cap = cv2.VideoCapture(camera_index)
+    cap = cv2.VideoCapture(2)
 
     if not cap.isOpened():
         print("Error: Could not open camera.")
