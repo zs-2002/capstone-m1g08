@@ -198,11 +198,11 @@ class RotatableCameraInterface:
         self.send_angles_to_rpi()
 
     def move_left(self):
-        self.horizontal_angle = max(0, self.horizontal_angle - 1)
+        self.horizontal_angle = max(0, self.horizontal_angle + 1)
         self.send_angles_to_rpi()
 
     def move_right(self):
-        self.horizontal_angle = min(180, self.horizontal_angle + 1)
+        self.horizontal_angle = min(180, self.horizontal_angle - 1)
         self.send_angles_to_rpi()
 
     def zoom_in(self):
