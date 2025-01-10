@@ -1,10 +1,12 @@
 import socket
 import pigpio
 import time
+import threading
 
 # Idle blinking variables
 last_blink_time = {}
 led_blink_state = {}
+active_beeps = {}  # Track active beep threads
 
 # Initialize pigpio
 pi = pigpio.pi()
@@ -57,11 +59,30 @@ def set_angle(pin, angle):
 
 def indicate_action(cam_id):
     """Indicate action with LEDs and buzzer."""
-    pi.write(led_pins[cam_id]["red"], 0)  # Turn off red LED
+    pi.write(led_pins[1]["red"], 0)  # Turn off red LED
+    pi.write(led_pins[2]["red"], 0)  # Turn off red LED
     pi.write(led_pins[cam_id]["green"], 1)  # Turn on green LED
     pi.write(buzzer_pins[cam_id], 1)  # Turn on buzzer
-    time.sleep(0.05)  # Beep for 100 ms
+    time.sleep(0.05)  # Beep for 50 ms
     pi.write(buzzer_pins[cam_id], 0)  # Turn off buzzer
+
+def non_blocking_beep(cam_id, duration):
+    """Trigger a non-blocking long beep."""
+    if cam_id in active_beeps:
+        print(f"Camera {cam_id} is already beeping.")
+        return
+
+    def beep_worker():
+        """Thread worker for non-blocking beep."""
+        pi.write(buzzer_pins[cam_id], 1)  # Turn on buzzer
+        pi.write(led_pins[cam_id]["green"], 0)
+        pi.write(led_pins[cam_id]["red"], 1)
+        time.sleep(duration)  # Beep for specified duration
+        pi.write(buzzer_pins[cam_id], 0)  # Turn off buzzer
+        del active_beeps[cam_id]  # Remove from active beeps when done
+
+    active_beeps[cam_id] = threading.Thread(target=beep_worker)
+    active_beeps[cam_id].start()
 
 def blink_idle_red():
     """Blink red LEDs for all cameras in idle state."""
@@ -73,6 +94,7 @@ def blink_idle_red():
             last_blink_time[cam_id] = current_time
             led_blink_state[cam_id] = not led_blink_state[cam_id]
             pi.write(led_pins[cam_id]["red"], int(led_blink_state[cam_id]))
+            pi.write(led_pins[cam_id]["green"], int(led_blink_state[cam_id]))
 
 # Network Setup
 host = '0.0.0.0'
@@ -105,16 +127,23 @@ try:
                 
                 # Parse received data
                 try:
-                    cam_id, horizontal_angle, vertical_angle = map(int, data.split(","))
-                    print(f"Camera {cam_id}: Horizontal Angle={horizontal_angle}, Vertical Angle={vertical_angle}")
-                    
-                    # Set servo angles for the specified camera
-                    if cam_id in servo_pins:
-                        set_angle(servo_pins[cam_id]["horizontal"], horizontal_angle)
-                        set_angle(servo_pins[cam_id]["vertical"], vertical_angle)
-                        indicate_action(cam_id)  # Change LED and beep
-                    else:
-                        print(f"Invalid camera ID: {cam_id}")
+                    parts = data.split(",")
+                    if parts[0] == "BEEP":  # Long beep command
+                        cam_id = int(parts[1])
+                        duration = float(parts[2])
+                        print(f"Camera {cam_id}: Non-Blocking Beep for {duration} seconds")
+                        non_blocking_beep(cam_id, duration)
+                    else:  # Servo control
+                        cam_id, horizontal_angle, vertical_angle = map(int, parts)
+                        print(f"Camera {cam_id}: Horizontal Angle={horizontal_angle}, Vertical Angle={vertical_angle}")
+                        
+                        # Set servo angles for the specified camera
+                        if cam_id in servo_pins:
+                            set_angle(servo_pins[cam_id]["horizontal"], horizontal_angle)
+                            set_angle(servo_pins[cam_id]["vertical"], vertical_angle)
+                            indicate_action(cam_id)  # Change LED and beep
+                        else:
+                            print(f"Invalid camera ID: {cam_id}")
                 except ValueError:
                     print(f"Invalid data format: {data}")
         except Exception as e:

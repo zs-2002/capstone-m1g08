@@ -170,6 +170,7 @@ class OperatorInterface:
                 )
                 self.correctness_display.tag_configure("red", foreground="red")
                 self.alert_label.config(text=f"ALERT: Step {self.current_step + 1} failed! Stopping process.")
+                self.beep_rpi()
 
         check_hand_detection()
 
@@ -184,6 +185,19 @@ class OperatorInterface:
             print(f"Sent angles to RPi: {data}")
         except Exception as e:
             print(f"Error sending angles to RPi: {e}")
+            self.socket = None
+
+    def beep_rpi(self):
+        try:
+            if self.socket is None:
+                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.socket.connect((self.rpi_host, self.rpi_port))
+            
+            data = f"BEEP,1,3"  # 1 for cam1, 3 for 3sec
+            self.socket.sendall(data.encode('utf-8'))
+            print(f"Sent angles to RPi: {data}")
+        except Exception as e:
+            print(f"Error sending beep to RPi: {e}")
             self.socket = None
 
     def navigate_back(self):
